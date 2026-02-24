@@ -15,7 +15,7 @@
  */
 import { createDryRunTemplateAction } from './createDryRunTemplateAction';
 import { actionsRegistryServiceMock } from '@backstage/backend-test-utils/alpha';
-import { ResponseError } from '@backstage/errors';
+import { ForwardedError, ResponseError } from '@backstage/errors';
 
 type ValidateScaffolderOutput = {
   valid: boolean;
@@ -217,7 +217,7 @@ describe('createDryRunTemplateAction', () => {
     expect(mockScaffolderClient.dryRun).not.toHaveBeenCalled();
   });
 
-  it('should return validation failure when scaffolderClient.dryRun throws ResponseError', async () => {
+  it('should throw ForwardedError when scaffolderClient.dryRun throws ResponseError', async () => {
     const mockActionsRegistry = actionsRegistryServiceMock();
 
     const responseError = await ResponseError.fromResponse({
@@ -238,40 +238,39 @@ describe('createDryRunTemplateAction', () => {
       scaffolderClient: mockScaffolderClient as any,
     });
 
-    const result = await mockActionsRegistry.invoke({
+    const promise = mockActionsRegistry.invoke({
       id: 'test:validate-scaffolder',
       input: { templateYaml: validTemplateYaml },
     });
 
-    expect(result.output).toEqual({
-      valid: false,
-      message: 'Template validation failed',
-      errors: expect.any(Array),
-    });
+    await expect(promise).rejects.toThrow(ForwardedError);
+    await expect(promise).rejects.toThrow('Template validation failed');
+
+    const err = (await promise.catch(e => e)) as ForwardedError;
+    expect(err.cause?.message).toContain('Template validation failed');
   });
 
-  it('should return validation failure when scaffolderClient.dryRun throws generic error', async () => {
+  it('should throw ForwardedError when scaffolderClient.dryRun throws generic error', async () => {
     const mockActionsRegistry = actionsRegistryServiceMock();
+    const genericError = new Error('Authentication error');
 
-    mockScaffolderClient.dryRun.mockRejectedValue(
-      new Error('Authentication error'),
-    );
+    mockScaffolderClient.dryRun.mockRejectedValue(genericError);
 
     createDryRunTemplateAction({
       actionsRegistry: mockActionsRegistry,
       scaffolderClient: mockScaffolderClient as any,
     });
 
-    const result = await mockActionsRegistry.invoke({
+    const promise = mockActionsRegistry.invoke({
       id: 'test:validate-scaffolder',
       input: { templateYaml: validTemplateYaml },
     });
 
-    expect(result.output).toEqual({
-      valid: false,
-      message: 'Template validation failed',
-      errors: ['Authentication error'],
-    });
+    await expect(promise).rejects.toThrow(ForwardedError);
+    await expect(promise).rejects.toThrow('Template validation failed');
+
+    const err = (await promise.catch(e => e)) as ForwardedError;
+    expect(err.cause?.message).toContain('Template validation failed');
   });
 
   it('should use default empty values and files when not provided', async () => {

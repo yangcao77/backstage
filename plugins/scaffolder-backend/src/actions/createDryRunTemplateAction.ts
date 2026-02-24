@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 import { ActionsRegistryService } from '@backstage/backend-plugin-api/alpha';
+import { ForwardedError } from '@backstage/errors';
 import { ScaffolderClient } from '@backstage/plugin-scaffolder-common';
-// import { ForwardedError } from '@backstage/errors';
 import yaml from 'yaml';
 
 const MAX_CONTENT_SIZE = 64 * 1024;
@@ -171,13 +171,9 @@ This action:
           errorMessages.push(error.message);
         }
 
-        return {
-          output: {
-            valid: false,
-            message: 'Template validation failed',
-            errors: errorMessages,
-          },
-        };
+        console.log('************************errorMessages', errorMessages);
+
+        throw new ForwardedError('Template validation failed', error);
       }
     },
   });
